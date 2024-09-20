@@ -1,3 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
 import 'package:flutter/material.dart';
 
 class NewMessage extends StatefulWidget {
@@ -10,9 +14,7 @@ class NewMessage extends StatefulWidget {
 }
 
 class _NewMessageState extends State<NewMessage> {
-
   var _messageController = TextEditingController();
-
 
   @override
   void dispose() {
@@ -20,18 +22,26 @@ class _NewMessageState extends State<NewMessage> {
     super.dispose();
   }
 
-  void _submitMessage(){
+  void _submitMessage() async {
     final enteredMessage = _messageController.text;
     if (enteredMessage.trim().isEmpty) {
       return;
     }
-
-    // send to firebase 
-
-
+    FocusScope.of(context).unfocus();
     _messageController.clear();
-  }
+    // send to firebase
+    final user = FirebaseAuth.instance.currentUser!;
+    final userData =
+        await FirebaseFirestore.instance.collection('user').doc(user.uid).get();
 
+    FirebaseFirestore.instance.collection('chat').add({
+      'text': enteredMessage,
+      'createdAt': Timestamp.now(),
+      'userId': user.uid,
+      'username': userData.data()!['username'],
+      'userImage': userData.data()!['image-url'],
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +51,7 @@ class _NewMessageState extends State<NewMessage> {
         children: [
           Expanded(
             child: TextField(
-              controller: _messageController ,
+              controller: _messageController,
               textCapitalization: TextCapitalization.sentences,
               autocorrect: true,
               enableSuggestions: true,
