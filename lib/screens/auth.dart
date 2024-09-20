@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:simple_chat/widgets/user_image_picker.dart';
@@ -16,30 +18,49 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-
-
-  File? _pickedImage ;
+  File? _pickedImage;
   var _isLogin = true;
   final _formKey = GlobalKey<FormState>();
-
+  var _isAuthenticating = false;
   var _enteredEmail = '';
   var _enteredPassword = '';
-
+  var _enteredUsername = '';
   _submit() async {
     var isValid = _formKey.currentState!.validate();
     if (!isValid || (_isLogin && _pickedImage == null)) {
       return;
-    } 
-  
+    }
 
     _formKey.currentState!.save();
     try {
+      setState(() {
+        _isAuthenticating = true;
+      });
+
       if (_isLogin) {
         final userCredential = await _firebase.signInWithEmailAndPassword(
             email: _enteredEmail, password: _enteredPassword);
       } else {
         final userCredential = await _firebase.createUserWithEmailAndPassword(
             email: _enteredEmail, password: _enteredPassword);
+
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('user_images')
+            .child('${userCredential.user!.uid}.jpg');
+
+        await storageRef.putFile(_pickedImage!);
+
+        final imageUrl = await storageRef.getDownloadURL();
+
+        await FirebaseFirestore.instance
+            .collection('user')
+            .doc(userCredential.user!.uid)
+            .set({
+          'username': _enteredUsername,
+          'email': _enteredEmail,
+          'image-url': imageUrl,
+        });
       }
     } on FirebaseAuthException catch (error) {
       if (error.code == 'email-already-in-use') {
@@ -51,6 +72,9 @@ class _AuthScreenState extends State<AuthScreen> {
           content: Text(error.message ?? "Authentication failed. "),
         ),
       );
+      setState(() {
+        _isAuthenticating = true;
+      });
     }
   }
 
@@ -83,9 +107,12 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!_isLogin) UserImagePicker(pickImage: (pickedImage){
+                          if (!_isLogin)
+                            UserImagePicker(
+                              pickImage: (pickedImage) {
                                 _pickedImage = pickedImage;
-                          },),
+                              },
+                            ),
                           TextFormField(
                             // key: _formKey,
                             decoration: const InputDecoration(
@@ -106,6 +133,25 @@ class _AuthScreenState extends State<AuthScreen> {
                               _enteredEmail = value!;
                             },
                           ),
+                          if (!_isLogin)
+                            TextFormField(
+                              // key: _formKey,
+                              decoration: const InputDecoration(
+                                labelText: "User name",
+                              ),
+                              // keyboardType: TextInputType.emailAddress,
+                              autocorrect: false,
+                              // textCapitalization: TextCapitalization.none,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return "User name is not empty";
+                                }
+                                return null;
+                              },
+                              onSaved: (value) {
+                                _enteredUsername = value!;
+                              },
+                            ),
                           TextFormField(
                             // key: _formKey,
                             decoration: const InputDecoration(
@@ -127,14 +173,17 @@ class _AuthScreenState extends State<AuthScreen> {
                           const SizedBox(
                             height: 12,
                           ),
-                          ElevatedButton(
-                            onPressed: _submit,
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer),
-                            child: Text(_isLogin ? 'Sign in' : 'Sign up'),
-                          ),
+                          if (_isAuthenticating)
+                            const CircularProgressIndicator(),
+                          if (!_isAuthenticating)
+                            ElevatedButton(
+                              onPressed: _submit,
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer),
+                              child: Text(_isLogin ? 'Sign in' : 'Sign up'),
+                            ),
                           TextButton(
                             onPressed: () {
                               setState(() {
