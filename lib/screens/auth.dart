@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:simple_chat/widgets/user_image_picker.dart';
@@ -14,6 +16,9 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+
+
+  File? _pickedImage ;
   var _isLogin = true;
   final _formKey = GlobalKey<FormState>();
 
@@ -22,9 +27,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
   _submit() async {
     var isValid = _formKey.currentState!.validate();
-    if (!isValid) {
+    if (!isValid || (_isLogin && _pickedImage == null)) {
       return;
-    }
+    } 
+  
 
     _formKey.currentState!.save();
     try {
@@ -77,7 +83,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (!_isLogin) UserImagePicker(),
+                          if (!_isLogin) UserImagePicker(pickImage: (pickedImage){
+                                _pickedImage = pickedImage;
+                          },),
                           TextFormField(
                             // key: _formKey,
                             decoration: const InputDecoration(
